@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiUbi — Ubicación en Tiempo Real</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --panel: rgba(12, 12, 20, 0.85);
+            --accent: #00f0a0;
+            --accent2: #00aaff;
+            --text: #e8e8f0;
+            --muted: #6b6b80;
+            --border: rgba(255,255,255,0.07);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            font-family: 'DM Sans', sans-serif;
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        #map { width: 100vw; height: 100vh; }
+
+        .header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            border-radius: 50px;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .header-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+            animation: pulse 2s infinite;
+        }
+
+        .header-title {
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            font-size: 15px;
+            letter-spacing: 0.05em;
+            color: var(--text);
+        }
+
+        .header-title span { color: var(--accent); }
+
+        .info-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            z-index: 10;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 18px 22px;
+            min-width: 220px;
+            animation: slideUp 0.6s 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .info-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 16px;
+        }
+
+        .info-row:last-child { margin-bottom: 0; }
+
+        .info-key {
+            font-size: 11px;
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        .info-val {
+            font-family: 'Syne', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-text { font-size: 11px; color: var(--muted); }
+
+        .center-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 20px;
+            z-index: 10;
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: var(--accent);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(0, 240, 160, 0.3), 0 4px 20px rgba(0,0,0,0.4);
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: slideUp 0.6s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .center-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 30px rgba(0, 240, 160, 0.5), 0 6px 24px rgba(0,0,0,0.5);
+        }
+
+        .center-btn:active { transform: scale(0.95); }
+
+        .center-btn svg { width: 22px; height: 22px; color: #0a0a0f; }
+
+        .mapboxgl-ctrl-bottom-right,
+        .mapboxgl-ctrl-bottom-left { display: none; }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateX(-50%) translateY(-16px); }
+            to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="header">
+        <div class="header-dot"></div>
+        <div class="header-title">Mi<span>Ubi</span></div>
+    </div>
+
+    <div class="info-panel">
+        <div class="info-label">Coordenadas actuales</div>
+        <div class="info-row">
+            <span class="info-key">Latitud</span>
+            <span class="info-val" id="lat-val">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-key">Longitud</span>
+            <span class="info-val" id="lng-val">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-key">Actualizado</span>
+            <span class="info-val" id="hora-val">—</span>
+        </div>
+        <div class="status-row">
+            <div class="status-dot"></div>
+            <span class="status-text">Escuchando en tiempo real</span>
+        </div>
+    </div>
+
+    <button class="center-btn" id="centerBtn" title="Centrar en ubicación">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            <circle cx="12" cy="12" r="9" stroke-width="1.5" opacity="0.4"/>
+        </svg>
+    </button>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA7bPFNNh9HKR3OqaMG1Y5F4qp1yx5Pw-Y",
+            authDomain: "miubi-30811.firebaseapp.com",
+            projectId: "miubi-30811",
+            storageBucket: "miubi-30811.firebasestorage.app",
+            messagingSenderId: "825620778665",
+            appId: "1:825620778665:android:3b23ee95ff22c89aaee3b8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        mapboxgl.accessToken = 'pk.eyJ1IjoiaHVnb2NhbWlsbyIsImEiOiJjbW0yNGVqcnowM3NuMnBweTliNzFuaGhnIn0.5SMRCqMDW4t8SJGRIWmh0w';
+
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [0, 0],
+            zoom: 12
+        });
+
+        const el = document.createElement('div');
+        el.style.cssText = `
+            width: 20px; height: 20px;
+            background: #00f0a0;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 0 4px rgba(0,240,160,0.3), 0 0 20px rgba(0,240,160,0.6);
+        `;
+
+        const marker = new mapboxgl.Marker({ element: el })
+            .setLngLat([0, 0])
+            .addTo(map);
+
+        let currentLng = 0, currentLat = 0;
+
+        document.getElementById('centerBtn').addEventListener('click', () => {
+            map.flyTo({ center: [currentLng, currentLat], zoom: 15, speed: 1.5 });
+        });
+
+        const ubicacionRef = doc(db, "ubica", "UserUbi");
+        onSnapshot(ubicacionRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+
+                if (data?.latitud !== undefined && data?.longitud !== undefined) {
+                    const latitud = parseFloat(data.latitud);
+                    const longitud = parseFloat(data.longitud);
+
+                    if (latitud >= -90 && latitud <= 90 && longitud >= -180 && longitud <= 180) {
+                        currentLat = latitud;
+                        currentLng = longitud;
+
+                        marker.setLngLat([longitud, latitud]);
+                        map.setCenter([longitud, latitud]);
+
+                        document.getElementById('lat-val').textContent = latitud.toFixed(6);
+                        document.getElementById('lng-val').textContent = longitud.toFixed(6);
+
+                        // ← CAMBIO: hora como String directo
+                        document.getElementById('hora-val').textContent = data.hora || "—";
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
